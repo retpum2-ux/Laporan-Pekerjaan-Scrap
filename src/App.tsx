@@ -3,7 +3,6 @@ import { User } from 'firebase/auth';
 import { initAuth, googleSignIn, logout } from './lib/auth';
 import { submitScrapReportToSheets } from './lib/googleDriveSheets';
 import { AREA_LIST, AreaDef, SubmissionLog } from './types/scrap';
-import { Header } from './components/Header';
 import { HomeAreaList } from './components/HomeAreaList';
 import { SpreadsheetModal } from './components/SpreadsheetModal';
 import { SubmissionHistoryModal } from './components/SubmissionHistoryModal';
@@ -23,7 +22,7 @@ import { Area10SortirSampahForm } from './components/forms/Area10SortirSampahFor
 import { Area11PotongKabelForm } from './components/forms/Area11PotongKabelForm';
 import { Area12ForkliftForm } from './components/forms/Area12ForkliftForm';
 
-import { CheckCircle2, AlertCircle, ExternalLink, X } from 'lucide-react';
+import { CheckCircle2, AlertCircle, ExternalLink, X, FileSpreadsheet, History, LogOut } from 'lucide-react';
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -262,18 +261,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-100/70 text-slate-900 flex flex-col font-sans">
-      {/* Top Navigation Header */}
-      <Header
-        user={user}
-        spreadsheetId={spreadsheetId}
-        spreadsheetName={spreadsheetName}
-        onOpenSpreadsheetModal={() => setIsSpreadsheetModalOpen(true)}
-        onOpenHistoryModal={() => setIsHistoryModalOpen(true)}
-        onLogin={handleLogin}
-        onLogout={handleLogout}
-        isLoggingIn={isLoggingIn}
-        onGoHome={() => setSelectedArea(null)}
-      />
+      {/* Top Header removed per user request */}
 
       {/* Toast Alert */}
       {toast && (
@@ -605,6 +593,72 @@ export default function App() {
           </div>
         )}
       </main>
+
+      {/* Discreet bottom bar for Google Spreadsheet connection & sync */}
+      <footer className="mt-auto py-3.5 border-t border-slate-200 bg-white/90 backdrop-blur-xs text-xs text-slate-500">
+        <div className="max-w-5xl mx-auto px-4 flex flex-wrap items-center justify-between gap-2.5">
+          <div className="flex items-center gap-2">
+            <span className="font-semibold text-slate-700">Google Drive:</span>
+            <button
+              type="button"
+              onClick={() => setIsSpreadsheetModalOpen(true)}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 font-medium transition-colors cursor-pointer"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+              <span className="truncate max-w-[200px] sm:max-w-[320px]">
+                {spreadsheetName || 'Pilih Google Spreadsheet'}
+              </span>
+            </button>
+            {spreadsheetId && (
+              <a
+                href={`https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`}
+                target="_blank"
+                rel="noreferrer"
+                className="text-slate-400 hover:text-emerald-700 p-1 transition-colors"
+                title="Buka Spreadsheet di Drive"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+              </a>
+            )}
+          </div>
+
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setIsHistoryModalOpen(true)}
+              className="inline-flex items-center gap-1 text-slate-600 hover:text-blue-700 font-medium cursor-pointer"
+            >
+              <History className="w-3.5 h-3.5 text-slate-400" />
+              <span>Riwayat ({logs.length})</span>
+            </button>
+
+            {user ? (
+              <div className="flex items-center gap-2 pl-2 border-l border-slate-200">
+                <span className="text-slate-700 font-medium truncate max-w-[120px]">
+                  {user.displayName || user.email}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="text-slate-400 hover:text-red-600 p-1 cursor-pointer"
+                  title="Keluar"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={handleLogin}
+                disabled={isLoggingIn}
+                className="text-blue-600 hover:text-blue-800 font-semibold cursor-pointer pl-2 border-l border-slate-200"
+              >
+                {isLoggingIn ? 'Menghubungkan...' : 'Masuk Google'}
+              </button>
+            )}
+          </div>
+        </div>
+      </footer>
 
       {/* Spreadsheet Picker / Creator Modal */}
       <SpreadsheetModal
