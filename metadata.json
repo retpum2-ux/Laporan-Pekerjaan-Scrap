@@ -1,0 +1,6 @@
+{
+  "name": "Laporan Pekerjaan Scrap",
+  "description": "Aplikasi web input laporan pekerjaan scrap Departemen Produksi (PP) yang terhubung otomatis dengan spreadsheet di Google Drive.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
