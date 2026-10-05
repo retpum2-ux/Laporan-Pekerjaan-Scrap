@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { FormLayout } from '../FormLayout';
 import { AreaDef, FormArea7Data } from '../../types/scrap';
+import { Check } from 'lucide-react';
 
 interface Area7Props {
   area: AreaDef;
@@ -56,15 +57,6 @@ export const Area7KebersihanHallForm: React.FC<Area7Props> = ({
     setChecklist((prev) => ({ ...prev, [item]: !prev[item] }));
   };
 
-  const handleSelectAll = () => {
-    const allChecked = HALL_AREAS.every((a) => checklist[a]);
-    const nextState = HALL_AREAS.reduce(
-      (acc, item) => ({ ...acc, [item]: !allChecked }),
-      {}
-    );
-    setChecklist(nextState);
-  };
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -117,13 +109,9 @@ export const Area7KebersihanHallForm: React.FC<Area7Props> = ({
       <div className="border-2 border-slate-300 rounded-xl overflow-hidden bg-white">
         <div className="p-3 bg-slate-100 border-b border-slate-300 flex items-center justify-between">
           <h4 className="text-sm font-extrabold text-slate-800">Sapu Hall</h4>
-          <button
-            type="button"
-            onClick={handleSelectAll}
-            className="text-xs text-blue-700 hover:text-blue-900 font-bold cursor-pointer"
-          >
-            {HALL_AREAS.every((a) => checklist[a]) ? 'Batal Semua' : 'Centang Semua'}
-          </button>
+          <span className="text-xs text-slate-500 font-medium">
+            Centang manual ({Object.values(checklist).filter(Boolean).length}/{HALL_AREAS.length})
+          </span>
         </div>
 
         <table className="w-full text-left border-collapse">
@@ -140,18 +128,32 @@ export const Area7KebersihanHallForm: React.FC<Area7Props> = ({
                 <tr
                   key={hall}
                   onClick={() => handleToggle(hall)}
-                  className={`cursor-pointer transition-colors ${
-                    checked ? 'bg-blue-50/50' : 'hover:bg-slate-50'
+                  className={`cursor-pointer transition-all select-none ${
+                    checked ? 'bg-blue-50/80 font-bold' : 'hover:bg-slate-50'
                   }`}
                 >
-                  <td className="py-2.5 px-4 font-semibold text-slate-800">{hall}</td>
-                  <td className="py-2.5 px-4 text-center">
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={() => handleToggle(hall)}
-                      className="w-5 h-5 text-blue-600 rounded cursor-pointer"
-                    />
+                  <td className="py-3 px-4 text-slate-800">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`w-2 h-2 rounded-full transition-colors ${
+                          checked ? 'bg-blue-600' : 'bg-transparent'
+                        }`}
+                      />
+                      <span>{hall}</span>
+                    </div>
+                  </td>
+                  <td className="py-3 px-4 text-center">
+                    <div className="inline-flex items-center justify-center">
+                      <div
+                        className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all ${
+                          checked
+                            ? 'bg-blue-600 border-blue-600 text-white shadow-xs'
+                            : 'border-slate-400 bg-white hover:border-blue-500'
+                        }`}
+                      >
+                        {checked && <Check className="w-4 h-4 stroke-[3]" />}
+                      </div>
+                    </div>
                   </td>
                 </tr>
               );
