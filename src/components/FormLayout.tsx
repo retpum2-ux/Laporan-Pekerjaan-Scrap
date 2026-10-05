@@ -1,11 +1,11 @@
 import React from 'react';
 import { ArrowLeft, Calendar, User as UserIcon, FileSpreadsheet, AlertCircle } from 'lucide-react';
-import { AreaDef, AREA_LIST } from '../types/scrap';
+import { AreaDef } from '../types/scrap';
 
 interface FormLayoutProps {
   area: AreaDef;
   onBack: () => void;
-  onSelectArea: (area: AreaDef) => void;
+  onSelectArea?: (area: AreaDef) => void;
   tgl: string;
   onTglChange: (val: string) => void;
   namaOperator: string;
@@ -35,32 +35,16 @@ export const FormLayout: React.FC<FormLayoutProps> = ({
 }) => {
   return (
     <div className="max-w-2xl mx-auto space-y-5 animate-in fade-in slide-in-from-bottom-2 duration-200">
-      {/* Top navigation & area switcher */}
-      <div className="flex items-center justify-between gap-2">
+      {/* Top navigation */}
+      <div className="flex items-center justify-start">
         <button
           type="button"
           onClick={onBack}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 text-xs sm:text-sm font-semibold shadow-2xs transition-colors cursor-pointer"
+          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 text-xs sm:text-sm font-semibold shadow-2xs transition-colors cursor-pointer"
         >
           <ArrowLeft className="w-4 h-4" />
           <span>Kembali ke Home</span>
         </button>
-
-        {/* Quick area dropdown selector */}
-        <select
-          value={area.id}
-          onChange={(e) => {
-            const found = AREA_LIST.find((a) => a.id === Number(e.target.value));
-            if (found) onSelectArea(found);
-          }}
-          className="text-xs bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer max-w-[180px] sm:max-w-[260px] truncate"
-        >
-          {AREA_LIST.map((a) => (
-            <option key={a.id} value={a.id}>
-              {a.id}. {a.title}
-            </option>
-          ))}
-        </select>
       </div>
 
       {/* Spreadsheet status reminder banner if not set */}
@@ -95,11 +79,6 @@ export const FormLayout: React.FC<FormLayoutProps> = ({
           <h2 className="text-lg sm:text-xl font-extrabold text-slate-900 tracking-tight">
             {area.pageTitle}
           </h2>
-          <div className="flex items-center justify-center gap-1.5 mt-1 text-xs text-slate-500 font-medium">
-            <span>Area {area.id}</span>
-            <span>•</span>
-            <span className="text-blue-700 font-semibold">{area.sheetName}</span>
-          </div>
         </div>
 
         {/* Global Common Fields: Tgl & Nama Operator */}
@@ -157,10 +136,6 @@ export const FormLayout: React.FC<FormLayoutProps> = ({
               <span>SIMPAN</span>
             )}
           </button>
-          <p className="text-[11px] text-center text-slate-500 mt-2">
-            Hasil pengisian akan langsung tersimpan ke spreadsheet Google Drive{' '}
-            {spreadsheetName ? `(${spreadsheetName})` : ''}
-          </p>
         </div>
       </form>
     </div>
