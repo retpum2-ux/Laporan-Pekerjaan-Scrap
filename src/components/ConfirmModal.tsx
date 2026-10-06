@@ -49,13 +49,10 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
 
         {/* Body */}
         <div className="p-6 overflow-y-auto space-y-4">
-          <div className="bg-amber-50 border border-amber-200 text-amber-900 text-xs sm:text-sm p-3 rounded-xl flex items-start gap-2.5">
-            <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+          <div className="bg-blue-50 border border-blue-200 text-blue-900 text-xs sm:text-sm p-3 rounded-xl flex items-start gap-2.5">
+            <AlertCircle className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
             <div>
-              <span className="font-semibold">Konfirmasi Penyimpanan:</span> Data berikut akan ditambahkan sebagai baris baru pada spreadsheet Google Drive:
-              <span className="block font-medium text-slate-800 mt-1 truncate">
-                📊 {spreadsheetName || 'Spreadsheet Terpilih'}
-              </span>
+              <span className="font-semibold">Konfirmasi Data:</span> Pastikan data laporan pekerjaan scrap berikut telah sesuai sebelum disimpan ke sistem.
             </div>
           </div>
 

@@ -12,9 +12,9 @@ interface FormLayoutProps {
   onNamaOperatorChange: (val: string) => void;
   onSubmit: (e: React.FormEvent) => void;
   isSubmitting: boolean;
-  spreadsheetId: string | null;
-  spreadsheetName: string | null;
-  onOpenSpreadsheetModal: () => void;
+  spreadsheetId?: string | null;
+  spreadsheetName?: string | null;
+  onOpenSpreadsheetModal?: () => void;
   children: React.ReactNode;
 }
 
@@ -46,28 +46,6 @@ export const FormLayout: React.FC<FormLayoutProps> = ({
           <span>Kembali ke Home</span>
         </button>
       </div>
-
-      {/* Spreadsheet status reminder banner if not set */}
-      {!spreadsheetId && (
-        <div className="bg-amber-50 border border-amber-300 rounded-2xl p-3.5 flex items-start justify-between gap-3 text-amber-900 text-xs">
-          <div className="flex items-start gap-2.5">
-            <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-            <div>
-              <p className="font-bold">Google Spreadsheet belum dipilih</p>
-              <p className="text-amber-700 mt-0.5">
-                Data akan disimpan sementara di riwayat lokal. Hubungkan ke Spreadsheet di Drive agar terisi otomatis.
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={onOpenSpreadsheetModal}
-            className="shrink-0 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-bold text-xs shadow-xs cursor-pointer"
-          >
-            Pilih Sheet
-          </button>
-        </div>
-      )}
 
       {/* Main Form Card Container - Styled neatly echoing the PDF box style */}
       <form

@@ -1,11 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { User } from 'firebase/auth';
-import { initAuth, googleSignIn, logout } from './lib/auth';
-import { submitScrapReportToSheets } from './lib/googleDriveSheets';
-import { AREA_LIST, AreaDef, SubmissionLog } from './types/scrap';
+import React, { useState } from 'react';
+import { AREA_LIST, AreaDef } from './types/scrap';
 import { HomeAreaList } from './components/HomeAreaList';
-import { SpreadsheetModal } from './components/SpreadsheetModal';
-import { SubmissionHistoryModal } from './components/SubmissionHistoryModal';
 import { ConfirmModal } from './components/ConfirmModal';
 
 // Area forms
@@ -22,24 +17,12 @@ import { Area10SortirSampahForm } from './components/forms/Area10SortirSampahFor
 import { Area11PotongKabelForm } from './components/forms/Area11PotongKabelForm';
 import { Area12ForkliftForm } from './components/forms/Area12ForkliftForm';
 
-import { CheckCircle2, AlertCircle, ExternalLink, X, FileSpreadsheet, History, LogOut } from 'lucide-react';
+import { CheckCircle2, AlertCircle, X } from 'lucide-react';
 
 export default function App() {
-  const [user, setUser] = useState<User | null>(null);
-  const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [selectedArea, setSelectedArea] = useState<AreaDef | null>(null);
 
-  // Active Google Spreadsheet state
-  const [spreadsheetId, setSpreadsheetId] = useState<string | null>(() => {
-    return localStorage.getItem('scrap_app_sheet_id') || null;
-  });
-  const [spreadsheetName, setSpreadsheetName] = useState<string | null>(() => {
-    return localStorage.getItem('scrap_app_sheet_name') || null;
-  });
-
-  // Modals state
-  const [isSpreadsheetModalOpen, setIsSpreadsheetModalOpen] = useState(false);
-  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+  // Modal confirmation state
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
 
   // Pending submission for confirm dialog
@@ -57,89 +40,17 @@ export default function App() {
   const [toast, setToast] = useState<{
     type: 'success' | 'error' | 'info';
     message: string;
-    linkUrl?: string;
   } | null>(null);
 
-  // Submission logs
-  const [logs, setLogs] = useState<SubmissionLog[]>(() => {
+  // Count of submissions stored in localStorage
+  const [submissionCounts, setSubmissionCounts] = useState<Record<number, number>>(() => {
     try {
-      const saved = localStorage.getItem('scrap_app_logs');
-      return saved ? JSON.parse(saved) : [];
+      const saved = localStorage.getItem('scrap_submission_counts');
+      return saved ? JSON.parse(saved) : {};
     } catch {
-      return [];
+      return {};
     }
   });
-
-  // Calculate submission counts per area
-  const submissionCounts = React.useMemo(() => {
-    const counts: Record<number, number> = {};
-    logs.forEach((log) => {
-      counts[log.areaId] = (counts[log.areaId] || 0) + 1;
-    });
-    return counts;
-  }, [logs]);
-
-  // Save logs to localStorage
-  useEffect(() => {
-    localStorage.setItem('scrap_app_logs', JSON.stringify(logs));
-  }, [logs]);
-
-  // Auth listener
-  useEffect(() => {
-    const unsubscribe = initAuth(
-      (currentUser) => {
-        setUser(currentUser);
-      },
-      () => {
-        setUser(null);
-      }
-    );
-    return () => unsubscribe();
-  }, []);
-
-  const handleLogin = async () => {
-    setIsLoggingIn(true);
-    try {
-      const result = await googleSignIn();
-      if (result) {
-        setUser(result.user);
-        setToast({
-          type: 'success',
-          message: `Berhasil masuk sebagai ${result.user.displayName || result.user.email}`,
-        });
-      }
-    } catch (err: unknown) {
-      console.error('Login error:', err);
-      const msg = err instanceof Error ? err.message : 'Gagal menghubungkan akun Google.';
-      setToast({
-        type: 'error',
-        message: msg,
-      });
-    } finally {
-      setIsLoggingIn(false);
-    }
-  };
-
-  const handleLogout = async () => {
-    await logout();
-    setUser(null);
-    setToast({
-      type: 'info',
-      message: 'Anda telah keluar dari akun Google.',
-    });
-  };
-
-  const handleSelectSpreadsheet = (id: string, name: string, _url?: string) => {
-    setSpreadsheetId(id);
-    setSpreadsheetName(name);
-    localStorage.setItem('scrap_app_sheet_id', id);
-    localStorage.setItem('scrap_app_sheet_name', name);
-    setToast({
-      type: 'success',
-      message: `Spreadsheet "${name}" berhasil dihubungkan!`,
-      linkUrl: `https://docs.google.com/spreadsheets/d/${id}/edit`,
-    });
-  };
 
   const handleOpenReportSubmission = (
     area: AreaDef,
@@ -161,111 +72,72 @@ export default function App() {
   const handleConfirmSubmit = async () => {
     if (!pendingSubmission) return;
 
-    // Check if user is signed in
-    if (!user) {
-      setIsConfirmModalOpen(false);
-      try {
-        const authRes = await googleSignIn();
-        if (!authRes) return;
-        setUser(authRes.user);
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : 'Login Google diperlukan untuk menyimpan.';
-        setToast({ type: 'error', message: msg });
-        return;
-      }
-    }
-
-    // Check if spreadsheet is chosen; if not, open modal
-    let activeSheetId = spreadsheetId;
-    if (!activeSheetId) {
-      setIsConfirmModalOpen(false);
-      setIsSpreadsheetModalOpen(true);
-      setToast({
-        type: 'info',
-        message: 'Silakan pilih atau buat Google Spreadsheet terlebih dahulu.',
-      });
-      return;
-    }
-
     setIsSubmitting(true);
     const { area, rows, summary } = pendingSubmission;
-    const operator = String(rows[0][2] || user?.displayName || 'Operator');
+    const operator = String(rows[0][2] || 'Operator');
     const dateVal = String(rows[0][1] || new Date().toISOString().split('T')[0]);
 
     try {
-      const res = await submitScrapReportToSheets(
-        activeSheetId,
-        area.id,
-        area.sheetName,
-        area.title,
-        dateVal,
-        operator,
-        rows,
-        summary
-      );
+      // Send directly to backend API
+      const response = await fetch('/api/submit-report', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          areaId: area.id,
+          areaTitle: area.title,
+          pageTitle: area.pageTitle,
+          sheetName: area.sheetName,
+          tgl: dateVal,
+          operator,
+          rows,
+          summary,
+        }),
+      });
 
-      // Record successful log
-      const newLog: SubmissionLog = {
-        id: Math.random().toString(36).substring(2, 9),
-        timestamp: new Date().toLocaleTimeString('id-ID'),
-        areaId: area.id,
-        areaTitle: area.title,
-        sheetName: area.sheetName,
-        operator,
-        date: dateVal,
-        summary,
-        spreadsheetId: activeSheetId,
-        spreadsheetName: spreadsheetName || 'Spreadsheet Scrap',
-        status: 'synced',
-      };
-      setLogs((prev) => [newLog, ...prev]);
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Gagal menyimpan ke server backend.');
+      }
+
+      // Update local submission counts
+      setSubmissionCounts((prev) => {
+        const updated = {
+          ...prev,
+          [area.id]: (prev[area.id] || 0) + 1,
+        };
+        localStorage.setItem('scrap_submission_counts', JSON.stringify(updated));
+        return updated;
+      });
 
       setIsConfirmModalOpen(false);
       setPendingSubmission(null);
       setToast({
         type: 'success',
-        message: `Data ${area.title} berhasil disimpan ke Spreadsheet Google Drive!`,
-        linkUrl: res.spreadsheetUrl,
+        message: result.message || `Laporan ${area.title} berhasil disimpan!`,
       });
 
-      // Optionally navigate back to home
+      // Navigate back to home table
       setSelectedArea(null);
     } catch (err: unknown) {
       console.error('Submit error:', err);
-      const msg = err instanceof Error ? err.message : 'Gagal menyimpan ke Google Spreadsheet.';
+      const msg = err instanceof Error ? err.message : 'Gagal mengirim laporan ke server backend.';
       setToast({
         type: 'error',
-        message: `Gagal simpan ke Sheets: ${msg}. Silakan coba lagi.`,
+        message: msg,
       });
-
-      // Record local log with error status
-      const newLog: SubmissionLog = {
-        id: Math.random().toString(36).substring(2, 9),
-        timestamp: new Date().toLocaleTimeString('id-ID'),
-        areaId: area.id,
-        areaTitle: area.title,
-        sheetName: area.sheetName,
-        operator,
-        date: dateVal,
-        summary,
-        status: 'error',
-        errorMessage: msg,
-      };
-      setLogs((prev) => [newLog, ...prev]);
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const defaultOperator = user?.displayName || '';
-
   return (
-    <div className="min-h-screen bg-slate-100/70 text-slate-900 flex flex-col font-sans">
-      {/* Top Header removed per user request */}
-
+    <div className="min-h-screen bg-slate-100/70 text-slate-900 flex flex-col font-sans pb-10">
       {/* Toast Alert */}
       {toast && (
-        <div className="fixed bottom-4 right-4 z-50 max-w-md w-full px-4 animate-in fade-in slide-in-from-bottom-4 duration-300">
+        <div className="fixed top-4 right-4 z-50 max-w-md w-full px-4 animate-in fade-in slide-in-from-top-4 duration-300">
           <div
             className={`p-4 rounded-2xl shadow-xl border flex items-start justify-between gap-3 ${
               toast.type === 'success'
@@ -283,17 +155,6 @@ export default function App() {
               )}
               <div className="text-xs sm:text-sm">
                 <p className="font-semibold leading-snug">{toast.message}</p>
-                {toast.linkUrl && (
-                  <a
-                    href={toast.linkUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-1 mt-1.5 text-xs font-bold underline text-emerald-200 hover:text-white"
-                  >
-                    <span>Buka Spreadsheet di Drive</span>
-                    <ExternalLink className="w-3.5 h-3.5" />
-                  </a>
-                )}
               </div>
             </div>
             <button
@@ -309,7 +170,7 @@ export default function App() {
       {/* Main Container */}
       <main className="flex-1 max-w-5xl w-full mx-auto px-3 sm:px-6 py-6 sm:py-8">
         {!selectedArea ? (
-          /* Home Page (Page 1 in PDF) */
+          /* Home Page (Pure PDF Table Page 1) */
           <HomeAreaList
             onSelectArea={(area) => setSelectedArea(area)}
             submissionCounts={submissionCounts}
@@ -322,10 +183,10 @@ export default function App() {
                 area={selectedArea}
                 onBack={() => setSelectedArea(null)}
                 onSelectArea={setSelectedArea}
-                defaultOperator={defaultOperator}
-                spreadsheetId={spreadsheetId}
-                spreadsheetName={spreadsheetName}
-                onOpenSpreadsheetModal={() => setIsSpreadsheetModalOpen(true)}
+                defaultOperator=""
+                spreadsheetId={null}
+                spreadsheetName={null}
+                onOpenSpreadsheetModal={() => {}}
                 isSubmitting={isSubmitting}
                 onSubmitReport={(data, rows, summary) =>
                   handleOpenReportSubmission(selectedArea, data, rows, summary, [
@@ -345,10 +206,10 @@ export default function App() {
                 area={selectedArea}
                 onBack={() => setSelectedArea(null)}
                 onSelectArea={setSelectedArea}
-                defaultOperator={defaultOperator}
-                spreadsheetId={spreadsheetId}
-                spreadsheetName={spreadsheetName}
-                onOpenSpreadsheetModal={() => setIsSpreadsheetModalOpen(true)}
+                defaultOperator=""
+                spreadsheetId={null}
+                spreadsheetName={null}
+                onOpenSpreadsheetModal={() => {}}
                 isSubmitting={isSubmitting}
                 onSubmitReport={(data, rows, summary) =>
                   handleOpenReportSubmission(selectedArea, data, rows, summary, [
@@ -369,10 +230,10 @@ export default function App() {
                 area={selectedArea}
                 onBack={() => setSelectedArea(null)}
                 onSelectArea={setSelectedArea}
-                defaultOperator={defaultOperator}
-                spreadsheetId={spreadsheetId}
-                spreadsheetName={spreadsheetName}
-                onOpenSpreadsheetModal={() => setIsSpreadsheetModalOpen(true)}
+                defaultOperator=""
+                spreadsheetId={null}
+                spreadsheetName={null}
+                onOpenSpreadsheetModal={() => {}}
                 isSubmitting={isSubmitting}
                 onSubmitReport={(data, rows, summary) =>
                   handleOpenReportSubmission(selectedArea, data, rows, summary, [
@@ -390,10 +251,10 @@ export default function App() {
                 area={selectedArea}
                 onBack={() => setSelectedArea(null)}
                 onSelectArea={setSelectedArea}
-                defaultOperator={defaultOperator}
-                spreadsheetId={spreadsheetId}
-                spreadsheetName={spreadsheetName}
-                onOpenSpreadsheetModal={() => setIsSpreadsheetModalOpen(true)}
+                defaultOperator=""
+                spreadsheetId={null}
+                spreadsheetName={null}
+                onOpenSpreadsheetModal={() => {}}
                 isSubmitting={isSubmitting}
                 onSubmitReport={(data, rows, summary) =>
                   handleOpenReportSubmission(selectedArea, data, rows, summary, [
@@ -411,10 +272,10 @@ export default function App() {
                 area={selectedArea}
                 onBack={() => setSelectedArea(null)}
                 onSelectArea={setSelectedArea}
-                defaultOperator={defaultOperator}
-                spreadsheetId={spreadsheetId}
-                spreadsheetName={spreadsheetName}
-                onOpenSpreadsheetModal={() => setIsSpreadsheetModalOpen(true)}
+                defaultOperator=""
+                spreadsheetId={null}
+                spreadsheetName={null}
+                onOpenSpreadsheetModal={() => {}}
                 isSubmitting={isSubmitting}
                 onSubmitReport={(data, rows, summary) =>
                   handleOpenReportSubmission(selectedArea, data, rows, summary, [
@@ -435,10 +296,10 @@ export default function App() {
                 area={selectedArea}
                 onBack={() => setSelectedArea(null)}
                 onSelectArea={setSelectedArea}
-                defaultOperator={defaultOperator}
-                spreadsheetId={spreadsheetId}
-                spreadsheetName={spreadsheetName}
-                onOpenSpreadsheetModal={() => setIsSpreadsheetModalOpen(true)}
+                defaultOperator=""
+                spreadsheetId={null}
+                spreadsheetName={null}
+                onOpenSpreadsheetModal={() => {}}
                 isSubmitting={isSubmitting}
                 onSubmitReport={(data, rows, summary) =>
                   handleOpenReportSubmission(selectedArea, data, rows, summary, [
@@ -456,10 +317,10 @@ export default function App() {
                 area={selectedArea}
                 onBack={() => setSelectedArea(null)}
                 onSelectArea={setSelectedArea}
-                defaultOperator={defaultOperator}
-                spreadsheetId={spreadsheetId}
-                spreadsheetName={spreadsheetName}
-                onOpenSpreadsheetModal={() => setIsSpreadsheetModalOpen(true)}
+                defaultOperator=""
+                spreadsheetId={null}
+                spreadsheetName={null}
+                onOpenSpreadsheetModal={() => {}}
                 isSubmitting={isSubmitting}
                 onSubmitReport={(data, rows, summary) =>
                   handleOpenReportSubmission(selectedArea, data, rows, summary, [
@@ -482,10 +343,10 @@ export default function App() {
                 area={selectedArea}
                 onBack={() => setSelectedArea(null)}
                 onSelectArea={setSelectedArea}
-                defaultOperator={defaultOperator}
-                spreadsheetId={spreadsheetId}
-                spreadsheetName={spreadsheetName}
-                onOpenSpreadsheetModal={() => setIsSpreadsheetModalOpen(true)}
+                defaultOperator=""
+                spreadsheetId={null}
+                spreadsheetName={null}
+                onOpenSpreadsheetModal={() => {}}
                 isSubmitting={isSubmitting}
                 onSubmitReport={(data, rows, summary) =>
                   handleOpenReportSubmission(selectedArea, data, rows, summary, [
@@ -503,10 +364,10 @@ export default function App() {
                 area={selectedArea}
                 onBack={() => setSelectedArea(null)}
                 onSelectArea={setSelectedArea}
-                defaultOperator={defaultOperator}
-                spreadsheetId={spreadsheetId}
-                spreadsheetName={spreadsheetName}
-                onOpenSpreadsheetModal={() => setIsSpreadsheetModalOpen(true)}
+                defaultOperator=""
+                spreadsheetId={null}
+                spreadsheetName={null}
+                onOpenSpreadsheetModal={() => {}}
                 isSubmitting={isSubmitting}
                 onSubmitReport={(data, rows, summary) =>
                   handleOpenReportSubmission(selectedArea, data, rows, summary, [
@@ -527,10 +388,10 @@ export default function App() {
                 area={selectedArea}
                 onBack={() => setSelectedArea(null)}
                 onSelectArea={setSelectedArea}
-                defaultOperator={defaultOperator}
-                spreadsheetId={spreadsheetId}
-                spreadsheetName={spreadsheetName}
-                onOpenSpreadsheetModal={() => setIsSpreadsheetModalOpen(true)}
+                defaultOperator=""
+                spreadsheetId={null}
+                spreadsheetName={null}
+                onOpenSpreadsheetModal={() => {}}
                 isSubmitting={isSubmitting}
                 onSubmitReport={(data, rows, summary) =>
                   handleOpenReportSubmission(selectedArea, data, rows, summary, [
@@ -548,10 +409,10 @@ export default function App() {
                 area={selectedArea}
                 onBack={() => setSelectedArea(null)}
                 onSelectArea={setSelectedArea}
-                defaultOperator={defaultOperator}
-                spreadsheetId={spreadsheetId}
-                spreadsheetName={spreadsheetName}
-                onOpenSpreadsheetModal={() => setIsSpreadsheetModalOpen(true)}
+                defaultOperator=""
+                spreadsheetId={null}
+                spreadsheetName={null}
+                onOpenSpreadsheetModal={() => {}}
                 isSubmitting={isSubmitting}
                 onSubmitReport={(data, rows, summary) =>
                   handleOpenReportSubmission(selectedArea, data, rows, summary, [
@@ -570,10 +431,10 @@ export default function App() {
                 area={selectedArea}
                 onBack={() => setSelectedArea(null)}
                 onSelectArea={setSelectedArea}
-                defaultOperator={defaultOperator}
-                spreadsheetId={spreadsheetId}
-                spreadsheetName={spreadsheetName}
-                onOpenSpreadsheetModal={() => setIsSpreadsheetModalOpen(true)}
+                defaultOperator=""
+                spreadsheetId={null}
+                spreadsheetName={null}
+                onOpenSpreadsheetModal={() => {}}
                 isSubmitting={isSubmitting}
                 onSubmitReport={(data, rows, summary) =>
                   handleOpenReportSubmission(selectedArea, data, rows, summary, [
@@ -594,99 +455,12 @@ export default function App() {
         )}
       </main>
 
-      {/* Discreet bottom bar for Google Spreadsheet connection & sync */}
-      <footer className="mt-auto py-3.5 border-t border-slate-200 bg-white/90 backdrop-blur-xs text-xs text-slate-500">
-        <div className="max-w-5xl mx-auto px-4 flex flex-wrap items-center justify-between gap-2.5">
-          <div className="flex items-center gap-2">
-            <span className="font-semibold text-slate-700">Google Drive:</span>
-            <button
-              type="button"
-              onClick={() => setIsSpreadsheetModalOpen(true)}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 font-medium transition-colors cursor-pointer"
-            >
-              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
-              <span className="truncate max-w-[200px] sm:max-w-[320px]">
-                {spreadsheetName || 'Pilih Google Spreadsheet'}
-              </span>
-            </button>
-            {spreadsheetId && (
-              <a
-                href={`https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`}
-                target="_blank"
-                rel="noreferrer"
-                className="text-slate-400 hover:text-emerald-700 p-1 transition-colors"
-                title="Buka Spreadsheet di Drive"
-              >
-                <ExternalLink className="w-3.5 h-3.5" />
-              </a>
-            )}
-          </div>
-
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => setIsHistoryModalOpen(true)}
-              className="inline-flex items-center gap-1 text-slate-600 hover:text-blue-700 font-medium cursor-pointer"
-            >
-              <History className="w-3.5 h-3.5 text-slate-400" />
-              <span>Riwayat ({logs.length})</span>
-            </button>
-
-            {user ? (
-              <div className="flex items-center gap-2 pl-2 border-l border-slate-200">
-                <span className="text-slate-700 font-medium truncate max-w-[120px]">
-                  {user.displayName || user.email}
-                </span>
-                <button
-                  type="button"
-                  onClick={handleLogout}
-                  className="text-slate-400 hover:text-red-600 p-1 cursor-pointer"
-                  title="Keluar"
-                >
-                  <LogOut className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={handleLogin}
-                disabled={isLoggingIn}
-                className="text-blue-600 hover:text-blue-800 font-semibold cursor-pointer pl-2 border-l border-slate-200"
-              >
-                {isLoggingIn ? 'Menghubungkan...' : 'Masuk Google'}
-              </button>
-            )}
-          </div>
-        </div>
-      </footer>
-
-      {/* Spreadsheet Picker / Creator Modal */}
-      <SpreadsheetModal
-        isOpen={isSpreadsheetModalOpen}
-        onClose={() => setIsSpreadsheetModalOpen(false)}
-        currentSpreadsheetId={spreadsheetId}
-        currentSpreadsheetName={spreadsheetName}
-        onSelectSpreadsheet={handleSelectSpreadsheet}
-        isAuthenticated={!!user}
-        onLoginPrompt={handleLogin}
-      />
-
-      {/* Submission History Modal */}
-      <SubmissionHistoryModal
-        isOpen={isHistoryModalOpen}
-        onClose={() => setIsHistoryModalOpen(false)}
-        logs={logs}
-        onClearLogs={() => setLogs([])}
-        currentSpreadsheetId={spreadsheetId}
-      />
-
-      {/* Workspace Explicit Confirmation Modal before writing data */}
+      {/* Confirmation Modal before writing data */}
       {pendingSubmission && (
         <ConfirmModal
           isOpen={isConfirmModalOpen}
-          title="Konfirmasi Simpan ke Spreadsheet"
+          title="Konfirmasi Simpan Laporan"
           areaTitle={pendingSubmission.area.pageTitle}
-          spreadsheetName={spreadsheetName || 'Spreadsheet Terhubung'}
           summaryItems={pendingSubmission.summaryItems}
           onConfirm={handleConfirmSubmit}
           onCancel={() => {
